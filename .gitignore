@@ -1,0 +1,9 @@
+# Ignore all .env files
+.env
+auth_service/.env
+user_service/.env
+course_service/.env
+playlist_service/.env
+analytics_service/.env
+streaming_service/.env
+nginx/.env
