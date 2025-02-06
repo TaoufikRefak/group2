@@ -1,1 +1,1 @@
-docker-compose up --build to build and run the app
+**docker-compose up --build** to build and run the app
