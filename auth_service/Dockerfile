@@ -3,7 +3,8 @@ FROM python:3.9-slim
 
 # Set the working directory in the container
 WORKDIR /app
-
+ARG GITHUB_TOKEN
+ENV GITHUB_TOKEN=${GITHUB_TOKEN}
 # Install system dependencies (to support private git repositories)
 RUN apt-get update && apt-get install -y git
 COPY .env .env
@@ -14,7 +15,8 @@ COPY . /app
 # Install dependencies listed in requirements.txt
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install git+https://${GITHUB_TOKEN}@github.com/TaoufikRefak/auth_lib.git@main#egg=auth_lib
+
+RUN pip install --no-cache-dir git+https://${GITHUB_TOKEN}@github.com/TaoufikRefak/auth_lib.git@main#egg=auth_lib
 
 
 # Install other dependencies if necessary

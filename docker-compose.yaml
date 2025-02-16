@@ -1,6 +1,8 @@
 networks:
   mynetwork:
     driver: bridge
+    attachable: true  # Add this
+
 
 services:
   # RabbitMQ for inter-service communication
@@ -74,11 +76,18 @@ services:
     ports:
       - "3002:3002"
     volumes:
-      - ./course_hls:/app/hls
+      - ./nginx/hls:/tmp/hls 
+ # Store HLS chunks here
     environment:
       DATABASE_URI: sqlite:///course.db
       RABBITMQ_HOST: rabbitmq
-      HLS_BASE_URL: http://localhost/hls
+      HLS_BASE_URL: http://nginx_gateway/hls  # Add this
+      MIST_SERVER_URL: http://localhost/hls
+      NGINX_RTMP_URL: http://nginx_gateway/hls  # Not port 8080
+      NGINX_VOD_DIR: /tmp/hls
+
+
+
     env_file:
       - ./course_service/.env
     depends_on:
@@ -128,8 +137,18 @@ services:
     restart: always
     networks:
       - mynetwork
-
-  # Streaming Service (NGINX RTMP + Flask)
+  nginx_rtmp:
+    image: tiangolo/nginx-rtmp:latest
+    container_name: nginx_rtmp
+    ports:
+      - "1935:1935"
+      - "8080:8080"
+    volumes:
+      - ./nginx/rtmp.conf:/etc/nginx/nginx.conf
+      - ./nginx/hls:/tmp/hls
+   
+    networks:
+      - mynetwork
   streaming_service:
     build:
       context: ./streaming_service
@@ -137,16 +156,20 @@ services:
         GITHUB_TOKEN: ${GITHUB_TOKEN}
     container_name: streaming_service
     ports:
-      - "1935:1935"
-      - "5080:5080"
       - "3010:3010"
     volumes:
-      - ./live_hls:/tmp/hls
+      - ./nginx/hls:/tmp/hls
+
       - ./course_hls:/app/hls
       - ./streaming_service/nginx.conf:/etc/nginx/nginx.conf
+
     environment:
-      NGINX_RTMP_URL: rtmp://localhost/live
+      MIST_RTMP_URL: rtmp://nginx_rtmp/live  # Use service name
       RABBITMQ_HOST: rabbitmq
+      CLIENT_HLS_BASE: http://nginx_gateway/hls
+      NGINX_RTMP_URL: rtmp://nginx_rtmp/live  # Updated RTMP URL
+
+
     env_file:
       - ./streaming_service/.env
     depends_on:
@@ -165,15 +188,19 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
       - ./nginx/conf.d:/etc/nginx/conf.d
       - ./course_hls:/app/hls
-      - ./live_hls:/tmp/hls
       - ./static:/usr/share/nginx/html
+      - ./nginx/hls:/usr/share/nginx/html/hls  # Mount to a path Nginx can serve
+
+
     depends_on:
-      rabbitmq:
-        condition: service_healthy  # ✅ Wait for RabbitMQ
-      course_service:
-        condition: service_started
-      streaming_service:
-        condition: service_started
+      - streaming_service
+      - nginx_rtmp
+      - user_service
+      - playlist_service
+      - analytics_service
+      - course_service
+      - auth_service
+  
 
     networks:
       - mynetwork
@@ -181,3 +208,4 @@ services:
 volumes:
   course_hls:
   live_hls:
+  
